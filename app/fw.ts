@@ -5,11 +5,15 @@ import 'rxjs/add/operator/map';
 import 'rxjs/add/operator/mergeMap';
 import 'rxjs/add/operator/do';
 import 'rxjs/add/operator/startWith';
+import 'rxjs/add/operator/observeOn';
+import 'rxjs/add/operator/share';
+import 'rxjs/add/operator/distinctUntilChanged';
 import 'rxjs/add/observable/from';
 import 'rxjs/add/observable/merge';
 import { BehaviorSubject } from 'rxjs/BehaviorSubject';
 import { Observable } from 'rxjs/Observable';
 import { Subscription } from 'rxjs/Subscription';
+import { queue } from 'rxjs/scheduler/queue';
 import * as yo from 'yo-yo';
 
 export interface Action {
@@ -25,7 +29,7 @@ export interface Effect<T> {
   (action$: ActionSubject, state$: Observable<T>): Observable<Action>;
 }
 
-export interface Component<T> {
+export interface SmartComponent<T> {
   (state: T, dispatch: Dispatcher): Element;
 }
 
@@ -56,9 +60,11 @@ export class App<T> {
     this.action$ = new ActionSubject({ type: '@@INIT' });
     this.reducer$ = new BehaviorSubject<ActionReducer<T>>(reducer);
     this.state$ = this.action$
+      .observeOn(queue)
       .withLatestFrom(this.reducer$)
       .scan((state, [ action, reducer ]) => reducer(state, action), INITIAL_STATE)
-      .startWith(INITIAL_STATE);
+      .startWith(INITIAL_STATE)
+      .share();
   }
 
   static create<T>(reducer: ActionReducer<T>): App<T> {
@@ -77,12 +83,13 @@ export class App<T> {
     return this;
   }
 
-  andRender(component: Component<T>) {
+  andRender(component: SmartComponent<T>) {
     const dispatch: Dispatcher = (action: Action) => this.action$.next(action);
     const element = document.querySelector(this._selector);
     let rendered = false;
 
     const render$ = this.state$
+      .distinctUntilChanged()
       .map(state => component(state, dispatch))
       .scan((previousElement: Element, nextElement: Element): Element => {
         return yo.update(previousElement, nextElement);
@@ -132,4 +139,29 @@ export function combineReducers(reducers: any): ActionReducer<any> {
     }
     return hasChanged ? nextState : state;
   };
+}
+
+
+export interface ComposeSignature {
+  <A>(): (i: A) => A;
+  <A, B>(b: (i: A) => B): (i: A) => B;
+  <A, B, C>(c: (i: B) => C, b: (i: A) => B): (i: A) => C;
+  <A, B, C, D>(d: (i: C) => D, c: (i: B) => C, b: (i: A) => B): (i: A) => D;
+  <A, B, C, D, E>(e: (i: D) => E, d: (i: C) => D, c: (i: B) => C, b: (i: A) => B): (i: A) => E;
+  <A, B, C, D, E, F>(f: (i: E) => F, e: (i: D) => E, d: (i: C) => D, c: (i: B) => C, b: (i: A) => B): (i: A) => F;
+  (...fns: any[]): (input: any) => any;
+}
+
+
+export const compose: ComposeSignature = (...functions) => {
+  return function(arg) {
+    if (functions.length === 0) {
+      return arg;
+    }
+
+    const last = functions[functions.length - 1];
+    const rest = functions.slice(0, -1);
+
+    return rest.reduceRight((composed, fn) => fn(composed), last(arg));
+  }
 }

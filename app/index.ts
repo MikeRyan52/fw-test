@@ -69,23 +69,31 @@ const incrementTimeEffect: Effect<AppState> = (actions$) => actions$
  * Presentation Components
  */
 const TimeComponent = (time: number) => view`
-  <span>${time} Seconds since last increment</span>
+  <ca-time>${time} Seconds since last increment</ca-time>
 `
 
 interface CounterComponentProps {
   total: number;
-  onAdd: (...args: any[]) => void;
-  onSubtract: (...args: any[]) => void;
+  onAdd?: (...args: any[]) => void;
+  onSubtract?: (...args: any[]) => void;
 }
 
 const noop = () => { };
 
 const CounterComponent = ({ total, onSubtract, onAdd}: CounterComponentProps) => view`
-  <div>
+  <ca-counter>
     <span>Current State: ${total}</span>
     <button onclick=${onSubtract || noop}>Subtract</button>
     <button onclick=${onAdd || noop}>Add</button>
-  </div>
+  </ca-counter>
+`;
+
+const SectionComponent = (title: string, children: Element) => view`
+  <ca-section>
+    <h2>${ title }</h2>
+
+    ${children}
+  </ca-section>
 `;
 
 
@@ -93,17 +101,17 @@ const CounterComponent = ({ total, onSubtract, onAdd}: CounterComponentProps) =>
  * Smart components
  */
 const CounterAppComponent: SmartComponent<AppState> = (state, dispatch) => view`
-  <div>
+  <counter-app>
     <h1>My Counter App</h1>
 
-    ${CounterComponent({
+    ${SectionComponent('Count', CounterComponent({
       total: state.count,
       onAdd: compose(dispatch, add),
       onSubtract: compose(dispatch, subtract)
-    })}
+    }))}
 
-    ${TimeComponent(state.time)}
-  </div>
+    ${SectionComponent('Time', TimeComponent(state.time))}
+  </counter-app>
 `;
 
 
@@ -112,6 +120,6 @@ const CounterAppComponent: SmartComponent<AppState> = (state, dispatch) => view`
  */
 App.create(reducer)
   .withEffects(incrementTimeEffect)
-  .selectElement('my-app')
+  .selectParentElement('body')
   .andRender(CounterAppComponent)
   .subscribe();

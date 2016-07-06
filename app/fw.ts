@@ -77,7 +77,7 @@ export class App<T> {
     return this;
   }
 
-  selectElement(selector: string) {
+  selectParentElement(selector: string) {
     this._selector = selector;
 
     return this;
